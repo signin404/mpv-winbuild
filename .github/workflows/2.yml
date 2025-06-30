@@ -20,7 +20,7 @@ on:
         - 64bit-v3
         - aarch64
         - all-64bit
-        - all
+        - 全部
       lgpl:
         description: "Also build lgpl libmpv"
         required: false
