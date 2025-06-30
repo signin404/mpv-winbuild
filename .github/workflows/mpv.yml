@@ -72,7 +72,7 @@ jobs:
         with:
           script: |
             const commit = await github.rest.repos.getCommit({
-              owner: 'signin404',
+              owner: 'mpv-player',
               repo: 'mpv',
               ref: `master`
             })
@@ -135,7 +135,7 @@ jobs:
               
               try {
                 const res = await waitingMergeability({
-                  owner: "signin404",
+                  owner: "mpv-player",
                   repo: "mpv",
                   pull_number: pr_number,
                 });
@@ -199,11 +199,6 @@ jobs:
           repository: shinchiro/mpv-winbuild-cmake
           path: mpv-winbuild-cmake
           fetch-depth: 0
-      - name: Checkout mpv source
-          uses: actions/checkout@v4
-          with:
-          repository: signin404/mpv
-          path: mpv-winbuild-cmake/src_packages/mpv
       - name: Prepare
         run: |
           echo "sha=${{ needs.params.outputs.sha }}" >> $GITHUB_ENV
@@ -654,7 +649,7 @@ jobs:
         with:
           script: |
             const sha = `${{ needs.params.outputs.sha }}`;
-            let note = `**MPV Git commit**: https://github.com/signin404/mpv/commit/${sha}\n`;
+            let note = `**MPV Git commit**: https://github.com/mpv-player/mpv/commit/${sha}\n`;
             note+="**Build Time**: ${{ env.long_time }}\n";
             note+="**Compiler**: ${{ inputs.compiler }}\n";
             note+="**Build Details**: https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}\n";
