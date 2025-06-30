@@ -200,8 +200,8 @@ jobs:
           path: mpv-winbuild-cmake
           fetch-depth: 0
       - name: Checkout mpv source
-          uses: actions/checkout@v4
-          with:
+        uses: actions/checkout@v4
+        with:
           repository: signin404/mpv
           path: mpv-winbuild-cmake/src_packages/mpv
       - name: Prepare
