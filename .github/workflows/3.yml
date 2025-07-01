@@ -1,4 +1,4 @@
-name: MPV
+name: 3
 run-name: "${{ inputs.run_name != '' && format('{0} ({1})', inputs.run_name, inputs.compiler) || inputs.prs != '' && format('{0}[{2}] ({1})', github.workflow, inputs.compiler, inputs.prs) || format('{0} ({1})', github.workflow, inputs.compiler) }}"
 
 permissions:
@@ -25,7 +25,7 @@ on:
         - 64bit-v3
         - aarch64
         - all-64bit
-        - 全部
+        - all
       lgpl:
         description: "Also build lgpl libmpv"
         required: false
@@ -530,11 +530,11 @@ jobs:
         with:
           script: |
             const path = require('path');
-            const { readdirSync,existsSync } = require('fs');
+            const { readdirSync, existsSync } = require('fs');
             const myExec = async (command, args = null) => await exec.getExecOutput(command,args,{silent: true}).then(result => result.stdout.trim()).catch(err => '');
             
             const upstreamDir = path.resolve("mpv-winbuild-cmake");
-            const workdir = path.resolve(upstreamDir,"src_packages");
+            const workdir = path.resolve(upstreamDir, "src_packages");
             const isGitSync = dirname => existsSync(path.join(workdir, dirname, '.git'));
             
             const getGithubUrl = (hash,remote) => remote.replace(/\.git$/,"") + `/commit/${hash}`;
@@ -580,6 +580,14 @@ jobs:
             }
             
             async function generateGitInfoTable(targetDir){
+              // --- 主要修改 ---
+              // 在读取目录前，先检查它是否存在
+              if (!existsSync(targetDir)) {
+                core.warning(`Directory not found: ${targetDir}. Skipping package version summary.`);
+                // 返回一个提示信息，而不是让脚本崩溃
+                return [[{data: 'Package', header: true}, {data: 'Status', header: true}], [{data: 'N/A (Build failed or sources not downloaded)', colspan: 2}]];
+              }
+
               const dirs = readdirSync(targetDir, { withFileTypes: true })
                 .filter(dirent => dirent.isDirectory() && isGitSync(dirent.name) )
                 .map(dirent => path.join(targetDir, dirent.name));
