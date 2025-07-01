@@ -293,29 +293,6 @@ jobs:
           key: source-${{ env.key_suffix }}
           restore-keys: |
             source-${{ env.restore_suffix }}
-      - name: Force correct mpv source AFTER cache restore
-        if: ${{ inputs.commit_hash != '' }}
-        run: |
-          set -e
-          MPV_SOURCE_DIR="${{ github.workspace }}/mpv-winbuild-cmake/src_packages/mpv"
-          echo "Forcing mpv source to commit ${{ needs.params.outputs.sha }} at ${MPV_SOURCE_DIR}"
-
-          echo "Step 1: Deleting directory restored from cache..."
-          # 无论缓存恢复了什么，我们都将其删除，以确保环境干净
-          rm -rf "${MPV_SOURCE_DIR}"
-          echo "Directory deleted."
-
-          echo "Step 2: Cloning fresh repository..."
-          git clone --depth 1 https://github.com/mpv-player/mpv.git "${MPV_SOURCE_DIR}"
-          
-          echo "Step 3: Checking out the specific commit..."
-          cd "${MPV_SOURCE_DIR}"
-          git fetch --unshallow --tags
-          git checkout ${{ needs.params.outputs.sha }}
-          
-          echo "Source preparation complete. Final commit is:"
-          git rev-parse HEAD
-        shell: bash
       - name: Restore Toolchain Cache
         if: ${{ env.toolchain_restore_key != '' }}
         uses: actions/cache/restore@v4.2.2
@@ -412,7 +389,19 @@ jobs:
       - name: Build
         id: build
         shell: bash
+      - name: Build
+        id: build
+        shell: bash
         run: |
+          # --- 最终的、唯一的修改 ---
+          # 我们将通过 -e 参数，向 build.sh 脚本传递一个 CMake 变量
+          # 这个变量会覆盖 mpv 项目的 GIT_TAG
+          EXTRA_CMAKE_ARGS=""
+          if [ -n "${{ inputs.commit_hash }}" ]; then
+            echo "::notice:: Overriding mpv commit using official CMake variable."
+            EXTRA_CMAKE_ARGS="-e mpv:GIT_TAG=${{ needs.params.outputs.sha }}"
+          fi
+
           chmod +x build.sh
           cd mpv-winbuild-cmake
           if [[ "$(ls -A ../patch/*.patch)" ]]; then
@@ -423,7 +412,9 @@ jobs:
           if [ "${{ matrix.lgpl }}" = "true" ]; then
             git am --3way ../compile-lgpl-libmpv.patch
           fi
-          bash ../build.sh -t '${{ matrix.bit }}' -c '${{ inputs.compiler }}' -s "${{ matrix.lgpl == true && 'true' || 'false' }}"
+          
+          # 在调用 build.sh 时，传入我们定义的额外参数
+          bash ../build.sh -t '${{ matrix.bit }}' -c '${{ inputs.compiler }}' -s "${{ matrix.lgpl == true && 'true' || 'false' }}" ${EXTRA_CMAKE_ARGS}
       - name: Collect logs
         if: ${{ always() }}
         run: |
