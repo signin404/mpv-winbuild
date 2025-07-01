@@ -25,7 +25,7 @@ on:
         - 64bit-v3
         - aarch64
         - all-64bit
-        - all
+        - 全部
       lgpl:
         description: "Also build lgpl libmpv"
         required: false
@@ -233,7 +233,7 @@ jobs:
           # --- 终极解决方案的第二部分 ---
           # 仅当用户在工作流输入中提供了 commit_hash 时才执行
           if [ -n "${{ inputs.commit_hash }}" ]; then
-            MPV_CONFIG_FILE="mpv-winbuild-cmake/packages/mpv.txt"
+            MPV_CONFIG_FILE="mpv-winbuild-cmake/packages/mpv.cmake"
             # 这是我们在上一步中手动克隆的源码路径
             MPV_MANUAL_SOURCE_DIR="${{ github.workspace }}/mpv-source"
 
