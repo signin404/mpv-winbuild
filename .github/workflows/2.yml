@@ -1,4 +1,4 @@
-name: 2
+name: 3
 run-name: "${{ inputs.run_name != '' && format('{0} ({1})', inputs.run_name, inputs.compiler) || inputs.prs != '' && format('{0}[{2}] ({1})', github.workflow, inputs.compiler, inputs.prs) || format('{0} ({1})', github.workflow, inputs.compiler) }}"
 
 permissions:
@@ -9,6 +9,11 @@ permissions:
 on: 
   workflow_dispatch:
     inputs:
+      # 新增的输入项
+      commit_hash:
+        description: "Specify a commit hash to build (overrides master)"
+        required: false
+        type: string
       build_target:
         description: "Build target"
         required: false
@@ -20,7 +25,7 @@ on:
         - 64bit-v3
         - aarch64
         - all-64bit
-        - 全部
+        - all
       lgpl:
         description: "Also build lgpl libmpv"
         required: false
@@ -57,9 +62,6 @@ on:
       run_name:
         description: 'The name displayed in the list of workflow runs'
         required: false
-      commit_sha:
-        description: 'The full commit hash to build. If empty, builds the latest from master.'
-        required: false
 
 jobs:
   params:
@@ -74,13 +76,16 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const ref = "${{ inputs.commit_sha }}" || 'master';
+            // 修改的部分：如果用户输入了 commit_hash，则使用它，否则使用 'master'
+            const ref = '${{ inputs.commit_hash }}' || 'master';
+            core.info(`Using ref: ${ref}`);
+
             const commit = await github.rest.repos.getCommit({
               owner: 'signin404',
               repo: 'mpv',
               ref: ref
-            })
-            core.setOutput('sha', String(commit.data.sha))
+            });
+            core.setOutput('sha', String(commit.data.sha));
             
             let matrix = {};
             let build_target = "${{ inputs.build_target }}"
@@ -200,15 +205,9 @@ jobs:
       - name: Checkout toolchain
         uses: actions/checkout@v4
         with:
-          repository: shinchiro/mpv-winbuild-cmake
+          repository: signin404/mpv-winbuild-cmake
           path: mpv-winbuild-cmake
           fetch-depth: 0
-      - name: Checkout specific mpv commit
-        uses: actions/checkout@v4
-        with:
-          repository: signin404/mpv
-          path: mpv-winbuild-cmake/src_packages/mpv
-          ref: ${{ needs.params.outputs.sha }}
       - name: Prepare
         run: |
           echo "sha=${{ needs.params.outputs.sha }}" >> $GITHUB_ENV
@@ -391,6 +390,30 @@ jobs:
         id: build
         shell: bash
         run: |
+          # --- 最终的、决定性的解决方案 ---
+          
+          # 仅当用户提供了 commit_hash 时，我们才执行修改
+          if [ -n "${{ inputs.commit_hash }}" ]; then
+            MPV_CONFIG_FILE="mpv-winbuild-cmake/packages/mpv.cmake"
+            echo "::notice:: Disabling aggressive git-reset functions in ${MPV_CONFIG_FILE}"
+
+            # 使用 sed 命令将两个强制更新的函数注释掉
+            # 这是解决问题的核心，它阻止了构建系统覆盖我们的指定版本
+            sed -i 's/force_rebuild_git(mpv)/#&/' "${MPV_CONFIG_FILE}"
+            sed -i 's/force_meson_configure(mpv)/#&/' "${MPV_CONFIG_FILE}"
+
+            echo "--- Configuration file after disabling reset functions: ---"
+            cat "${MPV_CONFIG_FILE}"
+            echo "----------------------------------------------------------"
+          fi
+
+          # 现在，我们使用 -e 参数来传递官方支持的 GIT_TAG 变量
+          # 因为强制重置已被禁用，这个变量现在将生效
+          EXTRA_CMAKE_ARGS=""
+          if [ -n "${{ inputs.commit_hash }}" ]; then
+            EXTRA_CMAKE_ARGS="-e mpv:GIT_TAG=${{ needs.params.outputs.sha }}"
+          fi
+
           chmod +x build.sh
           cd mpv-winbuild-cmake
           if [[ "$(ls -A ../patch/*.patch)" ]]; then
@@ -401,7 +424,9 @@ jobs:
           if [ "${{ matrix.lgpl }}" = "true" ]; then
             git am --3way ../compile-lgpl-libmpv.patch
           fi
-          bash ../build.sh -t '${{ matrix.bit }}' -c '${{ inputs.compiler }}' -s "${{ matrix.lgpl == true && 'true' || 'false' }}"
+          
+          # 使用我们定义的额外参数来调用构建脚本
+          bash ../build.sh -t '${{ matrix.bit }}' -c '${{ inputs.compiler }}' -s "${{ matrix.lgpl == true && 'true' || 'false' }}" ${EXTRA_CMAKE_ARGS}
       - name: Collect logs
         if: ${{ always() }}
         run: |
@@ -512,11 +537,11 @@ jobs:
         with:
           script: |
             const path = require('path');
-            const { readdirSync,existsSync } = require('fs');
+            const { readdirSync, existsSync } = require('fs');
             const myExec = async (command, args = null) => await exec.getExecOutput(command,args,{silent: true}).then(result => result.stdout.trim()).catch(err => '');
             
             const upstreamDir = path.resolve("mpv-winbuild-cmake");
-            const workdir = path.resolve(upstreamDir,"src_packages");
+            const workdir = path.resolve(upstreamDir, "src_packages");
             const isGitSync = dirname => existsSync(path.join(workdir, dirname, '.git'));
             
             const getGithubUrl = (hash,remote) => remote.replace(/\.git$/,"") + `/commit/${hash}`;
@@ -562,6 +587,14 @@ jobs:
             }
             
             async function generateGitInfoTable(targetDir){
+              // --- 主要修改 ---
+              // 在读取目录前，先检查它是否存在
+              if (!existsSync(targetDir)) {
+                core.warning(`Directory not found: ${targetDir}. Skipping package version summary.`);
+                // 返回一个提示信息，而不是让脚本崩溃
+                return [[{data: 'Package', header: true}, {data: 'Status', header: true}], [{data: 'N/A (Build failed or sources not downloaded)', colspan: 2}]];
+              }
+
               const dirs = readdirSync(targetDir, { withFileTypes: true })
                 .filter(dirent => dirent.isDirectory() && isGitSync(dirent.name) )
                 .map(dirent => path.join(targetDir, dirent.name));
