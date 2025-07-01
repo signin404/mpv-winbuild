@@ -9,6 +9,11 @@ permissions:
 on: 
   workflow_dispatch:
     inputs:
+      # 新增的输入项
+      commit_hash:
+        description: "Specify a commit hash to build (overrides master)"
+        required: false
+        type: string
       build_target:
         description: "Build target"
         required: false
@@ -20,7 +25,7 @@ on:
         - 64bit-v3
         - aarch64
         - all-64bit
-        - all
+        - 全部
       lgpl:
         description: "Also build lgpl libmpv"
         required: false
@@ -57,9 +62,6 @@ on:
       run_name:
         description: 'The name displayed in the list of workflow runs'
         required: false
-      commit_sha:
-        description: 'The full commit hash to build. If empty, builds the latest from master.'
-        required: false
 
 jobs:
   params:
@@ -74,13 +76,16 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const ref = "${{ inputs.commit_sha }}" || 'master';
+            // 修改的部分：如果用户输入了 commit_hash，则使用它，否则使用 'master'
+            const ref = '${{ inputs.commit_hash }}' || 'master';
+            core.info(`Using ref: ${ref}`);
+
             const commit = await github.rest.repos.getCommit({
               owner: 'mpv-player',
               repo: 'mpv',
               ref: ref
-            })
-            core.setOutput('sha', String(commit.data.sha))
+            });
+            core.setOutput('sha', String(commit.data.sha));
             
             let matrix = {};
             let build_target = "${{ inputs.build_target }}"
@@ -203,12 +208,6 @@ jobs:
           repository: shinchiro/mpv-winbuild-cmake
           path: mpv-winbuild-cmake
           fetch-depth: 0
-      - name: Checkout specific mpv commit
-        uses: actions/checkout@v4
-        with:
-          repository: mpv-player/mpv
-          path: mpv-winbuild-cmake/src_packages/mpv
-          ref: ${{ needs.params.outputs.sha }}
       - name: Prepare
         run: |
           echo "sha=${{ needs.params.outputs.sha }}" >> $GITHUB_ENV
