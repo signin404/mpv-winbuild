@@ -1,4 +1,4 @@
-name: MPV
+name: 1
 run-name: "${{ inputs.run_name != '' && format('{0} ({1})', inputs.run_name, inputs.compiler) || inputs.prs != '' && format('{0}[{2}] ({1})', github.workflow, inputs.compiler, inputs.prs) || format('{0} ({1})', github.workflow, inputs.compiler) }}"
 
 permissions:
@@ -196,14 +196,9 @@ jobs:
       - name: Checkout toolchain
         uses: actions/checkout@v4
         with:
-          repository: shinchiro/mpv-winbuild-cmake
+          repository: signin404/mpv-winbuild-cmake
           path: mpv-winbuild-cmake
           fetch-depth: 0
-      - name: Checkout mpv source
-        uses: actions/checkout@v4
-        with:
-          repository: signin404/mpv
-          path: mpv-winbuild-cmake/src_packages/mpv
       - name: Prepare
         run: |
           echo "sha=${{ needs.params.outputs.sha }}" >> $GITHUB_ENV
