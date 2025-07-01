@@ -1,4 +1,4 @@
-name: 3
+name: 2
 run-name: "${{ inputs.run_name != '' && format('{0} ({1})', inputs.run_name, inputs.compiler) || inputs.prs != '' && format('{0}[{2}] ({1})', github.workflow, inputs.compiler, inputs.prs) || format('{0} ({1})', github.workflow, inputs.compiler) }}"
 
 permissions:
@@ -25,7 +25,7 @@ on:
         - 64bit-v3
         - aarch64
         - all-64bit
-        - all
+        - 全部
       lgpl:
         description: "Also build lgpl libmpv"
         required: false
