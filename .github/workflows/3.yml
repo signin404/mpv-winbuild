@@ -389,9 +389,6 @@ jobs:
       - name: Build
         id: build
         shell: bash
-      - name: Build
-        id: build
-        shell: bash
         run: |
           # --- 最终的、唯一的修改 ---
           # 我们将通过 -e 参数，向 build.sh 脚本传递一个 CMake 变量
