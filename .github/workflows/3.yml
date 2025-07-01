@@ -216,27 +216,37 @@ jobs:
           sed -i '/ccache_conf.in/d'  mpv-winbuild-cmake/CMakeLists.txt
           sed -i '/ccache/d' mpv-winbuild-cmake/exec.in
 
-          # --- 最终的正确修改 ---
+          # --- 最终解决方案 ---
           # 仅当用户在工作流输入中提供了 commit_hash 时才执行
           if [ -n "${{ inputs.commit_hash }}" ]; then
-            # 定义正确的配置文件路径，这次包含 .txt 后缀
             MPV_CONFIG_FILE="mpv-winbuild-cmake/packages/mpv.cmake"
+            MPV_SOURCE_DIR="mpv-winbuild-cmake/src_packages/mpv"
 
             echo "Attempting to override mpv commit to ${{ needs.params.outputs.sha }}"
             echo "Target config file: ${MPV_CONFIG_FILE}"
+            echo "Target source directory to clean: ${MPV_SOURCE_DIR}"
 
-            # 在修改前，先检查文件是否存在
+            # 步骤 1: 清理旧的源码目录，强制 ExternalProject 重新 clone
+            if [ -d "${MPV_SOURCE_DIR}" ]; then
+              echo "Removing existing mpv source directory to force re-clone..."
+              rm -rf "${MPV_SOURCE_DIR}"
+              echo "Directory removed."
+            else
+              echo "No existing mpv source directory found. A fresh clone will occur."
+            fi
+
+            # 步骤 2: 修改配置文件以指定 commit
             if [ -f "${MPV_CONFIG_FILE}" ]; then
-              # 使用 sed 命令，在包含 "GIT_REPOSITORY" 的行之后，追加一行 "GIT_TAG"
+              # 确保我们不会重复添加 GIT_TAG
+              sed -i '/GIT_TAG/d' "${MPV_CONFIG_FILE}"
+              # 在 GIT_REPOSITORY 行之后添加 GIT_TAG
               sed -i "/GIT_REPOSITORY/a \    GIT_TAG ${{ needs.params.outputs.sha }}" "${MPV_CONFIG_FILE}"
               
               echo "--- Content of '${MPV_CONFIG_FILE}' after modification: ---"
               cat "${MPV_CONFIG_FILE}"
               echo "----------------------------------------------------------------------"
             else
-              # 如果文件不存在，则打印错误信息并使步骤失败
               echo "::error::Configuration file not found at '${MPV_CONFIG_FILE}'!"
-              echo "Cannot override commit hash. Please check the file path in the workflow."
               exit 1
             fi
           fi
