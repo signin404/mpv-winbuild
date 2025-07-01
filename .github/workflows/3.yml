@@ -209,29 +209,44 @@ jobs:
           path: mpv-winbuild-cmake
           fetch-depth: 0
 
-      # In the 'build_mpv' job, after the 'Checkout toolchain' step:
+      # 在 'build_mpv' 任务中, 位于 'Checkout toolchain' 步骤之后
       - name: Manually prepare mpv source at specific commit
         if: ${{ inputs.commit_hash != '' }}
         run: |
-          # The directory where the build system expects to find the mpv source
+          # 让脚本在任何命令失败时立即中止
+          set -e
+
+          # 构建系统期望找到 mpv 源码的唯一正确路径
           MPV_EXPECTED_SOURCE_DIR="${{ github.workspace }}/mpv-winbuild-cmake/src_packages/mpv"
 
-          echo "Preparing mpv source at the expected location: ${MPV_EXPECTED_SOURCE_DIR}"
+          echo "Ensuring correct mpv source at: ${MPV_EXPECTED_SOURCE_DIR}"
+
+          # 步骤 1: 强制删除任何已存在的 (尤其是从缓存恢复的) 旧源码目录。
+          # 这是解决问题的核心，确保我们不会使用缓存中的陈旧代码。
+          if [ -d "${MPV_EXPECTED_SOURCE_DIR}" ]; then
+            echo "Removing existing source directory to prevent conflicts with cache..."
+            rm -rf "${MPV_EXPECTED_SOURCE_DIR}"
+            echo "Directory removed."
+          fi
           
-          # Create the directory structure
-          mkdir -p "${MPV_EXPECTED_SOURCE_DIR}"
+          # 步骤 2: 现在目标目录保证是空的，克隆一份全新的源码。
+          echo "Cloning mpv repository..."
+          # 先用 --depth 1 克隆以加快下载速度
+          git clone --depth 1 https://github.com/mpv-player/mpv.git "${MPV_EXPECTED_SOURCE_DIR}"
           
-          echo "Cloning mpv repository into the target directory..."
-          # Clone into the directory we just created. The '.' at the end is crucial.
-          git clone https://github.com/mpv-player/mpv.git "${MPV_EXPECTED_SOURCE_DIR}"
-          
-          # Now, cd into the new directory and check out the specific commit
+          # 步骤 3: 进入新目录，获取完整的 Git 历史，然后检出指定的 commit。
           cd "${MPV_EXPECTED_SOURCE_DIR}"
+          
+          echo "Fetching full history to find the commit..."
+          # 为了能按哈希检出任意 commit，我们需要完整的历史记录。
+          git fetch --unshallow --tags
+          
           echo "Checking out specified commit: ${{ needs.params.outputs.sha }}"
           git checkout ${{ needs.params.outputs.sha }}
           
-          echo "Successfully prepared source. Final commit:"
+          echo "Successfully prepared source. Final commit is now:"
           git rev-parse HEAD
+        shell: bash
       - name: Prepare
         run: |
           echo "sha=${{ needs.params.outputs.sha }}" >> $GITHUB_ENV
