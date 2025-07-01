@@ -390,12 +390,27 @@ jobs:
         id: build
         shell: bash
         run: |
-          # --- 最终的、唯一的修改 ---
-          # 我们将通过 -e 参数，向 build.sh 脚本传递一个 CMake 变量
-          # 这个变量会覆盖 mpv 项目的 GIT_TAG
+          # --- 最终的、决定性的解决方案 ---
+          
+          # 仅当用户提供了 commit_hash 时，我们才执行修改
+          if [ -n "${{ inputs.commit_hash }}" ]; then
+            MPV_CONFIG_FILE="mpv-winbuild-cmake/packages/mpv.cmake"
+            echo "::notice:: Disabling aggressive git-reset functions in ${MPV_CONFIG_FILE}"
+
+            # 使用 sed 命令将两个强制更新的函数注释掉
+            # 这是解决问题的核心，它阻止了构建系统覆盖我们的指定版本
+            sed -i 's/force_rebuild_git(mpv)/#&/' "${MPV_CONFIG_FILE}"
+            sed -i 's/force_meson_configure(mpv)/#&/' "${MPV_CONFIG_FILE}"
+
+            echo "--- Configuration file after disabling reset functions: ---"
+            cat "${MPV_CONFIG_FILE}"
+            echo "----------------------------------------------------------"
+          fi
+
+          # 现在，我们使用 -e 参数来传递官方支持的 GIT_TAG 变量
+          # 因为强制重置已被禁用，这个变量现在将生效
           EXTRA_CMAKE_ARGS=""
           if [ -n "${{ inputs.commit_hash }}" ]; then
-            echo "::notice:: Overriding mpv commit using official CMake variable."
             EXTRA_CMAKE_ARGS="-e mpv:GIT_TAG=${{ needs.params.outputs.sha }}"
           fi
 
@@ -410,7 +425,7 @@ jobs:
             git am --3way ../compile-lgpl-libmpv.patch
           fi
           
-          # 在调用 build.sh 时，传入我们定义的额外参数
+          # 使用我们定义的额外参数来调用构建脚本
           bash ../build.sh -t '${{ matrix.bit }}' -c '${{ inputs.compiler }}' -s "${{ matrix.lgpl == true && 'true' || 'false' }}" ${EXTRA_CMAKE_ARGS}
       - name: Collect logs
         if: ${{ always() }}
