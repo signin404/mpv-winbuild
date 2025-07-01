@@ -1,4 +1,4 @@
-name: 3
+name: MPV
 run-name: "${{ inputs.run_name != '' && format('{0} ({1})', inputs.run_name, inputs.compiler) || inputs.prs != '' && format('{0}[{2}] ({1})', github.workflow, inputs.compiler, inputs.prs) || format('{0} ({1})', github.workflow, inputs.compiler) }}"
 
 permissions:
@@ -215,6 +215,25 @@ jobs:
           echo "cache_suffix=$(date "+%Y-%m-%d")-${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_ENV
           sed -i '/ccache_conf.in/d'  mpv-winbuild-cmake/CMakeLists.txt
           sed -i '/ccache/d' mpv-winbuild-cmake/exec.in
+
+          # --- 正确的修改 ---
+          # 仅当用户在工作流输入中提供了 commit_hash 时才执行
+          if [ -n "${{ inputs.commit_hash }}" ]; then
+            # 定义要修改的配置文件的路径
+            # 根据您的文件，它应该在 packages 目录下，并且可能没有 .txt 后缀
+            MPV_CONFIG_FILE="mpv-winbuild-cmake/packages/mpv"
+
+            echo "Overriding mpv commit to ${{ needs.params.outputs.sha }}"
+            echo "Target config file: ${MPV_CONFIG_FILE}"
+
+            # 使用 sed 命令，在包含 "GIT_REPOSITORY" 的行之后，追加一行 "GIT_TAG"
+            # 这确保了我们会使用指定的 commit 哈希
+            sed -i "/GIT_REPOSITORY/a \    GIT_TAG ${{ needs.params.outputs.sha }}" ${MPV_CONFIG_FILE}
+            
+            echo "--- Content of '${MPV_CONFIG_FILE}' after modification: ---"
+            cat ${MPV_CONFIG_FILE}
+            echo "----------------------------------------------------------------------"
+          fi
 
       - name: Lookup Toolchain Cache
         id: lookup_toolchain
