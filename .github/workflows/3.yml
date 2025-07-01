@@ -25,7 +25,7 @@ on:
         - 64bit-v3
         - aarch64
         - all-64bit
-        - 全部
+        - all
       lgpl:
         description: "Also build lgpl libmpv"
         required: false
@@ -209,18 +209,28 @@ jobs:
           path: mpv-winbuild-cmake
           fetch-depth: 0
 
-      # --- 新增的步骤 ---
-      - name: Manually checkout mpv source at specific commit
+      # In the 'build_mpv' job, after the 'Checkout toolchain' step:
+      - name: Manually prepare mpv source at specific commit
         if: ${{ inputs.commit_hash != '' }}
         run: |
-          echo "Cloning mpv source repository..."
-          # 使用 --depth 1 和 --no-filter 加速克隆，然后获取完整历史记录
-          git clone --depth 1 --no-filter https://github.com/mpv-player/mpv.git ${{ github.workspace }}/mpv-source
-          cd ${{ github.workspace }}/mpv-source
-          git fetch --unshallow || git fetch --all
+          # The directory where the build system expects to find the mpv source
+          MPV_EXPECTED_SOURCE_DIR="${{ github.workspace }}/mpv-winbuild-cmake/src_packages/mpv"
+
+          echo "Preparing mpv source at the expected location: ${MPV_EXPECTED_SOURCE_DIR}"
+          
+          # Create the directory structure
+          mkdir -p "${MPV_EXPECTED_SOURCE_DIR}"
+          
+          echo "Cloning mpv repository into the target directory..."
+          # Clone into the directory we just created. The '.' at the end is crucial.
+          git clone https://github.com/mpv-player/mpv.git "${MPV_EXPECTED_SOURCE_DIR}"
+          
+          # Now, cd into the new directory and check out the specific commit
+          cd "${MPV_EXPECTED_SOURCE_DIR}"
           echo "Checking out specified commit: ${{ needs.params.outputs.sha }}"
           git checkout ${{ needs.params.outputs.sha }}
-          echo "Successfully checked out commit:"
+          
+          echo "Successfully prepared source. Final commit:"
           git rev-parse HEAD
       - name: Prepare
         run: |
@@ -229,36 +239,6 @@ jobs:
           echo "cache_suffix=$(date "+%Y-%m-%d")-${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_ENV
           sed -i '/ccache_conf.in/d'  mpv-winbuild-cmake/CMakeLists.txt
           sed -i '/ccache/d' mpv-winbuild-cmake/exec.in
-
-          # --- 终极解决方案的第二部分 ---
-          # 仅当用户在工作流输入中提供了 commit_hash 时才执行
-          if [ -n "${{ inputs.commit_hash }}" ]; then
-            MPV_CONFIG_FILE="mpv-winbuild-cmake/packages/mpv.cmake"
-            # 这是我们在上一步中手动克隆的源码路径
-            MPV_MANUAL_SOURCE_DIR="${{ github.workspace }}/mpv-source"
-
-            echo "Rewriting mpv config to use a local source directory."
-            echo "Local source: ${MPV_MANUAL_SOURCE_DIR}"
-
-            if [ -f "${MPV_CONFIG_FILE}" ]; then
-              # 步骤 A: 注释掉所有 Git 相关指令，防止冲突
-              sed -i 's|^\s*GIT_REPOSITORY.*$|#&|' "${MPV_CONFIG_FILE}"
-              sed -i 's|^\s*GIT_TAG.*$|#&|' "${MPV_CONFIG_FILE}"
-              sed -i 's|^\s*GIT_CLONE_FLAGS.*$|#&|' "${MPV_CONFIG_FILE}"
-              sed -i 's|^\s*UPDATE_COMMAND.*$|#&|' "${MPV_CONFIG_FILE}"
-
-              # 步骤 B: 修改 SOURCE_DIR 指令，强制它使用我们准备好的本地目录
-              # 注意：这里会替换掉原来的 SOURCE_DIR ${SOURCE_LOCATION}
-              sed -i "s|^\s*SOURCE_DIR.*$|    SOURCE_DIR ${MPV_MANUAL_SOURCE_DIR}|" "${MPV_CONFIG_FILE}"
-              
-              echo "--- Configuration file '${MPV_CONFIG_FILE}' after modification: ---"
-              cat "${MPV_CONFIG_FILE}"
-              echo "----------------------------------------------------------------------"
-            else
-              echo "::error::Configuration file not found at '${MPV_CONFIG_FILE}'!"
-              exit 1
-            fi
-          fi
 
       - name: Lookup Toolchain Cache
         id: lookup_toolchain
