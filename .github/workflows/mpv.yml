@@ -13,7 +13,7 @@ on:
     inputs:
       winbuild_repo:
         required: true
-        default: 'signin404/mpv-winbuild-cmake'
+        default: 'dyphire/mpv-winbuild-cmake'
       winbuild_ref:
         required: true
         default: 'patch'
@@ -57,7 +57,7 @@ on:
 # Workflow level env does not work properly in all fields.
 # https://github.com/actions/runner/issues/480
 env:
-  winbuildrepo: 'signin404/mpv-winbuild-cmake'
+  winbuildrepo: 'dyphire/mpv-winbuild-cmake'
   winbuildref: 'patch'
   mpvowner: 'mpv-player'
   mpvref: 'master'
