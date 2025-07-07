@@ -70,6 +70,25 @@ build() {
     ninja -C $buildroot/build$bit update
     ninja -C $buildroot/build$bit mpv-fullclean
     
+    # --- START: Custom file replacement ---
+    echo ">>> Checking for custom files to replace..."
+    CUSTOM_CONTEXT_FILE="$gitdir/context.c"
+    
+    if [ -f "$CUSTOM_CONTEXT_FILE" ]; then
+        MPV_SOURCE_DIR="$buildroot/build$bit/mpv-prefix/src/mpv"
+        TARGET_CONTEXT_FILE="$MPV_SOURCE_DIR/video/out/d3d11/context.c"
+        
+        if [ -d "$MPV_SOURCE_DIR" ]; then
+            echo ">>> Found custom context.c. Replacing original file at $TARGET_CONTEXT_FILE"
+            cp "$CUSTOM_CONTEXT_FILE" "$TARGET_CONTEXT_FILE"
+        else
+            echo ">>> WARNING: MPV source directory not found at '$MPV_SOURCE_DIR'. Cannot replace file."
+        fi
+    else
+        echo ">>> NOTE: No custom context.c found at '$CUSTOM_CONTEXT_FILE'. Skipping replacement."
+    fi
+    # --- END: Custom file replacement ---
+
     ninja -C $buildroot/build$bit mpv
 
     if [ -n "$(find $buildroot/build$bit -maxdepth 1 -type d -name "mpv*$arch*" -print -quit)" ] ; then
