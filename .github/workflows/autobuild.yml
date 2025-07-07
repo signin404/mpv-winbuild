@@ -19,7 +19,7 @@ jobs:
               ref: '${{github.ref}}',
               workflow_id: 'mpv.yml',
               inputs: {
-              winbuild_repo: "dyphire/mpv-winbuild-cmake",
+              winbuild_repo: "signin404/mpv-winbuild-cmake",
               winbuild_ref: "patch",
               build_target: "all-64bit",
               compiler: "clang",
